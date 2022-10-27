@@ -49,10 +49,14 @@ class BEVFormerHead(DETRHead):
                  code_weights=None,
                  bev_h=30,
                  bev_w=30,
+                 dequity_eta=1.0,
+                 dequity_gamma=5.0,
                  **kwargs):
 
         self.bev_h = bev_h
         self.bev_w = bev_w
+        self.dequity_eta = dequity_eta
+        self.dequity_gamma = dequity_gamma
         self.fp16_enabled = False
 
         self.with_box_refine = with_box_refine
@@ -126,6 +130,17 @@ class BEVFormerHead(DETRHead):
             bias_init = bias_init_with_prob(0.01)
             for m in self.cls_branches:
                 nn.init.constant_(m[-1].bias, bias_init)
+
+    def dequity_loss_weight(self, p, eta=1.0, gamma=5.0):
+        """Calculate the dequity loss weight.
+        Args:
+            p (float): The probability of the sample.
+            eta (float): The parameter to control the weight.
+            gamma (float): The parameter to control the weight.
+        Returns:
+            float: The dequity loss weight.
+        """
+        return (eta + (1 - p) ** gamma) / (eta + 1)
 
     @auto_fp16(apply_to=('mlvl_feats'))
     def forward(self, mlvl_feats, img_metas, prev_bev=None,  only_bev=False):
@@ -341,6 +356,7 @@ class BEVFormerHead(DETRHead):
                     bbox_preds,
                     gt_bboxes_list,
                     gt_labels_list,
+                    sample_likelihood,
                     gt_bboxes_ignore_list=None):
         """"Loss function for outputs from a single decoder layer of a single
         feature level.
@@ -354,6 +370,7 @@ class BEVFormerHead(DETRHead):
                 with shape (num_gts, 4) in [tl_x, tl_y, br_x, br_y] format.
             gt_labels_list (list[Tensor]): Ground truth class indices for each
                 image with shape (num_gts, ).
+            sample_likelihood (list[Tensor]): likelihood for each image
             gt_bboxes_ignore_list (list[Tensor], optional): Bounding
                 boxes which can be ignored for each image. Default None.
         Returns:
@@ -372,6 +389,9 @@ class BEVFormerHead(DETRHead):
         label_weights = torch.cat(label_weights_list, 0)
         bbox_targets = torch.cat(bbox_targets_list, 0)
         bbox_weights = torch.cat(bbox_weights_list, 0)
+        dequity_weights = self.dequity_loss_weight(sample_likelihood, 
+                                                   eta=self.dequity_eta, 
+                                                   gamma=self.dequity_gamma)
 
         # classification loss
         cls_scores = cls_scores.reshape(-1, self.cls_out_channels)
@@ -383,7 +403,7 @@ class BEVFormerHead(DETRHead):
                 cls_scores.new_tensor([cls_avg_factor]))
 
         cls_avg_factor = max(cls_avg_factor, 1)
-        loss_cls = self.loss_cls(
+        loss_cls = dequity_weights * self.loss_cls(
             cls_scores, labels, label_weights, avg_factor=cls_avg_factor)
 
         # Compute the average number of gt boxes accross all gpus, for
@@ -397,7 +417,7 @@ class BEVFormerHead(DETRHead):
         isnotnan = torch.isfinite(normalized_bbox_targets).all(dim=-1)
         bbox_weights = bbox_weights * self.code_weights
 
-        loss_bbox = self.loss_bbox(
+        loss_bbox = dequity_weights * self.loss_bbox(
             bbox_preds[isnotnan, :10], normalized_bbox_targets[isnotnan,
                                                                :10], bbox_weights[isnotnan, :10],
             avg_factor=num_total_pos)
@@ -411,6 +431,7 @@ class BEVFormerHead(DETRHead):
              gt_bboxes_list,
              gt_labels_list,
              preds_dicts,
+             sample_likelihoods,
              gt_bboxes_ignore=None,
              img_metas=None):
         """"Loss function.
@@ -435,6 +456,8 @@ class BEVFormerHead(DETRHead):
                 enc_bbox_preds (Tensor): Regression results of each points
                     on the encode feature map, has shape (N, h*w, 4). Only be
                     passed when as_two_stage is True, otherwise is None.
+            sample_likelihoods:
+                
             gt_bboxes_ignore (list[Tensor], optional): Bounding boxes
                 which can be ignored for each image. Default None.
         Returns:
@@ -461,11 +484,12 @@ class BEVFormerHead(DETRHead):
         all_gt_bboxes_ignore_list = [
             gt_bboxes_ignore for _ in range(num_dec_layers)
         ]
+        all_sample_likelihoods = [sample_likelihoods for _ in range(num_dec_layers)]
 
         losses_cls, losses_bbox = multi_apply(
             self.loss_single, all_cls_scores, all_bbox_preds,
             all_gt_bboxes_list, all_gt_labels_list,
-            all_gt_bboxes_ignore_list)
+            all_sample_likelihoods, all_gt_bboxes_ignore_list)
 
         loss_dict = dict()
         # loss of proposal generated from encode feature map.

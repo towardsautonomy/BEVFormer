@@ -114,6 +114,7 @@ class BEVFormer(MVXTwoStageDetector):
                           gt_bboxes_3d,
                           gt_labels_3d,
                           img_metas,
+                          sample_likelihood,
                           gt_bboxes_ignore=None,
                           prev_bev=None):
         """Forward function'
@@ -133,7 +134,7 @@ class BEVFormer(MVXTwoStageDetector):
 
         outs = self.pts_bbox_head(
             pts_feats, img_metas, prev_bev)
-        loss_inputs = [gt_bboxes_3d, gt_labels_3d, outs]
+        loss_inputs = [gt_bboxes_3d, gt_labels_3d, outs, sample_likelihood]
         losses = self.pts_bbox_head.loss(*loss_inputs, img_metas=img_metas)
         return losses
 
@@ -190,6 +191,7 @@ class BEVFormer(MVXTwoStageDetector):
                       gt_bboxes_ignore=None,
                       img_depth=None,
                       img_mask=None,
+                      sample_likelihood=None,
                       ):
         """Forward training function.
         Args:
@@ -211,6 +213,7 @@ class BEVFormer(MVXTwoStageDetector):
                 used for training Fast RCNN. Defaults to None.
             gt_bboxes_ignore (list[torch.Tensor], optional): Ground truth
                 2D boxes in images to be ignored. Defaults to None.
+            sample_likelihood (float): Likelihood of this sample. Defaults to 1.0.
         Returns:
             dict: Losses of different branches.
         """
@@ -229,7 +232,10 @@ class BEVFormer(MVXTwoStageDetector):
         losses = dict()
         losses_pts = self.forward_pts_train(img_feats, gt_bboxes_3d,
                                             gt_labels_3d, img_metas,
-                                            gt_bboxes_ignore, prev_bev)
+                                            sample_likelihood,
+                                            gt_bboxes_ignore, prev_bev,
+                                            )
+
 
         losses.update(losses_pts)
         return losses

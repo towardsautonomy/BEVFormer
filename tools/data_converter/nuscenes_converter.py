@@ -13,6 +13,7 @@ from os import path as osp
 from pyquaternion import Quaternion
 from shapely.geometry import MultiPoint, box
 from typing import List, Tuple, Union
+import pickle
 
 from mmdet3d.core.bbox.box_np_ops import points_cam2img
 from mmdet3d.datasets import NuScenesDataset
@@ -32,6 +33,8 @@ def create_nuscenes_infos(root_path,
                           can_bus_root_path,
                           info_prefix,
                           version='v1.0-trainval',
+                          capture_likelihood=False,
+                          cluster_info_path=None,
                           max_sweeps=10):
     """Create info file of nuscene dataset.
 
@@ -88,7 +91,8 @@ def create_nuscenes_infos(root_path,
             len(train_scenes), len(val_scenes)))
 
     train_nusc_infos, val_nusc_infos = _fill_trainval_infos(
-        nusc, nusc_can_bus, train_scenes, val_scenes, test, max_sweeps=max_sweeps)
+        nusc, nusc_can_bus, train_scenes, val_scenes, capture_likelihood, 
+        cluster_info_path, test, max_sweeps=max_sweeps)
 
     metadata = dict(version=version)
     if test:
@@ -180,6 +184,8 @@ def _fill_trainval_infos(nusc,
                          nusc_can_bus,
                          train_scenes,
                          val_scenes,
+                         capture_likelihood,
+                         cluster_info_path=None,
                          test=False,
                          max_sweeps=10):
     """Generate the train/val infos from the raw data.
@@ -196,6 +202,12 @@ def _fill_trainval_infos(nusc,
         tuple[list[dict]]: Information of training set and validation set
             that will be saved to the info file.
     """
+    cluster_info = {}
+    if capture_likelihood and cluster_info_path is not None:
+        # load cluster info pickle file 
+        with open(cluster_info_path, 'rb') as f:
+            cluster_info = pickle.load(f)
+
     train_nusc_infos = []
     val_nusc_infos = []
     frame_idx = 0
@@ -227,6 +239,10 @@ def _fill_trainval_infos(nusc,
             'timestamp': sample['timestamp'],
         }
 
+        if sample['token'] in cluster_info:
+            sample_cluster_info = cluster_info[sample['token']]
+            info['cluster_info'] = sample_cluster_info
+            
         if sample['next'] == '':
             frame_idx = 0
         else:

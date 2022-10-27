@@ -55,6 +55,8 @@ def nuscenes_data_prep(root_path,
                        version,
                        dataset_name,
                        out_dir,
+                       capture_likelihood=False,
+                       cluster_info_path=None,
                        max_sweeps=10):
     """Prepare data related to nuScenes dataset.
 
@@ -67,10 +69,14 @@ def nuscenes_data_prep(root_path,
         version (str): Dataset version.
         dataset_name (str): The dataset class name.
         out_dir (str): Output directory of the groundtruth database info.
+        capture_likelihood (bool, optional): Whether to capture sample likelihood
+            from nuScenes. Defaults to False.
+        cluster_info_path (str, optional): Path of cluster info file.
         max_sweeps (int): Number of input consecutive frames. Default: 10
     """
     nuscenes_converter.create_nuscenes_infos(
-        root_path, out_dir, can_bus_root_path, info_prefix, version=version, max_sweeps=max_sweeps)
+        root_path, out_dir, can_bus_root_path, info_prefix, version=version, 
+        capture_likelihood=capture_likelihood, cluster_info_path=cluster_info_path, max_sweeps=max_sweeps)
 
     if version == 'v1.0-test':
         info_test_path = osp.join(
@@ -212,6 +218,16 @@ parser.add_argument(
     required=False,
     help='specify the dataset version, no need for kitti')
 parser.add_argument(
+    '--capture-likelihood',
+    default=False,
+    action='store_true',
+    help='specify whether to use capture sample likelihood for the dataset')
+parser.add_argument(
+    '--cluster-info-path',
+    type=str,
+    default='./data/nuscenes/nuscenes_training_cluster_info.pkl',
+    help='specify the path of cluster info file')
+parser.add_argument(
     '--max-sweeps',
     type=int,
     default=10,
@@ -244,6 +260,8 @@ if __name__ == '__main__':
             version=train_version,
             dataset_name='NuScenesDataset',
             out_dir=args.out_dir,
+            capture_likelihood=args.capture_likelihood,
+            cluster_info_path=args.cluster_info_path,
             max_sweeps=args.max_sweeps)
         test_version = f'{args.version}-test'
         nuscenes_data_prep(
@@ -263,6 +281,8 @@ if __name__ == '__main__':
             version=train_version,
             dataset_name='NuScenesDataset',
             out_dir=args.out_dir,
+            capture_likelihood=args.capture_likelihood,
+            cluster_info_path=args.cluster_info_path,
             max_sweeps=args.max_sweeps)
     elif args.dataset == 'lyft':
         train_version = f'{args.version}-train'

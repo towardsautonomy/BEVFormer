@@ -71,6 +71,8 @@ model = dict(
         type='BEVFormerHead',
         bev_h=bev_h_,
         bev_w=bev_w_,
+        dequity_eta=1.0,
+        dequity_gamma=5.0,
         num_query=900,
         num_classes=10,
         in_channels=_dim_,
@@ -182,7 +184,7 @@ train_pipeline = [
     dict(type='RandomScaleImageMultiViewImage', scales=[0.8]),
     dict(type='PadMultiViewImage', size_divisor=32),
     dict(type='DefaultFormatBundle3D', class_names=class_names),
-    dict(type='CustomCollect3D', keys=['gt_bboxes_3d', 'gt_labels_3d', 'img'])
+    dict(type='CustomCollect3D', keys=['gt_bboxes_3d', 'gt_labels_3d', 'img', 'sample_likelihood'])
 ]
 
 test_pipeline = [
@@ -206,8 +208,8 @@ test_pipeline = [
 ]
 
 data = dict(
-    samples_per_gpu=1,
-    workers_per_gpu=4,
+    samples_per_gpu=6,
+    workers_per_gpu=6,
     train=dict(
         type=dataset_type,
         data_root=data_root,
@@ -221,7 +223,8 @@ data = dict(
         queue_length=queue_length,
         # we use box_type_3d='LiDAR' in kitti and nuscenes dataset
         # and box_type_3d='Depth' in sunrgbd and scannet dataset.
-        box_type_3d='LiDAR'),
+        box_type_3d='LiDAR',
+        dataset_equity=True),
     val=dict(type=dataset_type,
              data_root=data_root,
              ann_file=data_root + 'nuscenes_infos_temporal_val.pkl',

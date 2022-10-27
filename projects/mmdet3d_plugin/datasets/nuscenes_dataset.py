@@ -22,11 +22,17 @@ class CustomNuScenesDataset(NuScenesDataset):
     This datset only add camera intrinsics and extrinsics to the results.
     """
 
-    def __init__(self, queue_length=4, bev_size=(200, 200), overlap_test=False, *args, **kwargs):
+    def __init__(self, 
+                 queue_length=4, 
+                 bev_size=(200, 200), 
+                 overlap_test=False, 
+                 dataset_equity=False,
+                 *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.queue_length = queue_length
         self.overlap_test = overlap_test
         self.bev_size = bev_size
+        self.dataset_equity = dataset_equity
         
     def prepare_train_data(self, index):
         """
@@ -117,6 +123,12 @@ class CustomNuScenesDataset(NuScenesDataset):
             frame_idx=info['frame_idx'],
             timestamp=info['timestamp'] / 1e6,
         )
+
+        if self.dataset_equity and 'cluster_info' in info:
+            input_dict['sample_likelihood'] = info['cluster_info']['cluster_size'] / \
+                                              info['cluster_info']['largest_cluster_size']
+        else:
+            input_dict['sample_likelihood'] = 1.0
 
         if self.modality['use_camera']:
             image_paths = []
