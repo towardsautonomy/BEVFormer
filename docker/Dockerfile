@@ -49,21 +49,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libgtk2.0-dev pkg-config \
     libopenmpi-dev \
  && sudo rm -rf /var/lib/apt/lists/*
+ENV MPI=openmpi
 
-# Install Miniconda
-RUN wget \
-    https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh \
-    && mkdir /root/.conda \
-    && bash Miniconda3-latest-Linux-x86_64.sh -b \
-    && rm -f Miniconda3-latest-Linux-x86_64.sh 
-
-ENV CONDA_DEFAULT_ENV=${project}
-ENV CONDA_PREFIX=/root/miniconda3/envs/$CONDA_DEFAULT_ENV
-ENV PATH=/root/miniconda3/bin:$CONDA_PREFIX/bin:$PATH
+# install miniconda
+ENV CONDA_DIR /opt/conda
+RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda.sh
+RUN /bin/bash ~/miniconda.sh -b -p $CONDA_DIR
+ENV PATH=$CONDA_DIR/bin:$CONDA_DIR/envs/bin:$PATH
 
 # install python 3.8
 RUN conda install python=3.8
-RUN alias python='/root/miniconda3/envs/bin/python3.8'
+
+# create a symlink
+RUN ln -s $CONDA_DIR/bin/python3.8 /usr/bin/python
+ENV PYTHONPATH=$CONDA_DIR/bin/python
 
 # Set environment and working directory
 ENV CUDA_HOME=/usr/local/cuda
@@ -71,10 +70,10 @@ ENV LD_LIBRARY_PATH=$CUDA_HOME/lib64:$CUDA_HOME/extras/CUPTI/lib64/:$LD_LIBRARY_
 ENV PATH=$CUDA_HOME/bin:$PATH
 ENV CFLAGS="-I$CUDA_HOME/include $CFLAGS"
 ENV FORCE_CUDA="1"
-ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/miniconda3/envs/bin:$PATH
+ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$PATH
 
 # install pytorch
-RUN pip install torch==1.9.1+cu111 torchvision==0.10.1+cu111 torchaudio==0.9.1 -f https://download.pytorch.org/whl/torch_stable.html
+RUN python -m pip install torch==1.9.1+cu111 torchvision==0.10.1+cu111 torchaudio==0.9.1 -f https://download.pytorch.org/whl/torch_stable.html
 
 # install opencv
 RUN python -m pip install opencv-python==4.5.5.62
@@ -89,6 +88,7 @@ RUN cd torchpack && python -m pip install -e .
 # install other dependencies
 RUN python -m pip install mmcv-full==1.4.0 -f https://download.openmmlab.com/mmcv/dist/cu111/torch1.9.0/index.html
 RUN python -m pip install pillow==8.4.0 \
+                          numpy==1.19.5 \
                           tqdm \
                           mmdet==2.14.0 \
                           mmsegmentation==0.14.1 \
