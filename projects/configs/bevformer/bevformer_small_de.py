@@ -71,8 +71,8 @@ model = dict(
         type='BEVFormerHead',
         bev_h=bev_h_,
         bev_w=bev_w_,
-        dequity_eta=1.0,
-        dequity_gamma=0.0,
+        dequity_eta=0.5,
+        dequity_gamma=5.0,
         num_query=900,
         num_classes=10,
         in_channels=_dim_,
@@ -208,8 +208,8 @@ test_pipeline = [
 ]
 
 data = dict(
-    samples_per_gpu=8,
-    workers_per_gpu=4,
+    samples_per_gpu=6,
+    workers_per_gpu=6,
     train=dict(
         type=dataset_type,
         data_root=data_root,
@@ -224,7 +224,7 @@ data = dict(
         # we use box_type_3d='LiDAR' in kitti and nuscenes dataset
         # and box_type_3d='Depth' in sunrgbd and scannet dataset.
         box_type_3d='LiDAR',
-        dataset_equity=False),
+        dataset_equity=True),
     val=dict(type=dataset_type,
              data_root=data_root,
              ann_file=data_root + 'nuscenes_infos_temporal_val.pkl',
